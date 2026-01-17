@@ -2,7 +2,7 @@ from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
-from .models import UserLogin, Trainer
+from .models import UserLogin, Trainer, UserProfile
 
 # Create your views here.
 
@@ -164,3 +164,273 @@ def create_trainer(request):
         except Exception as e:
             return JsonResponse({'success': False, 'message': str(e)}, status=500)
     return JsonResponse({'success': False, 'message': 'Only POST method is allowed'}, status=405)
+
+
+@csrf_exempt
+def create_profile(request):
+    """Create or update user profile with fitness goals"""
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            user_id = data.get('user_id')
+            
+            # Validate user_id
+            if not user_id:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'User ID is required'
+                }, status=400)
+            
+            # Check if user exists
+            try:
+                user = UserLogin.objects.get(id=user_id)
+            except UserLogin.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'User not found'
+                }, status=404)
+            
+            # Get all required fields
+            mobile_number = data.get('mobile_number', '')
+            age = data.get('age')
+            gender = data.get('gender')
+            current_weight = data.get('current_weight')
+            current_height = data.get('current_height')
+            goal = data.get('goal')
+            target_weight = data.get('target_weight')
+            target_months = data.get('target_months')
+            workout_time = data.get('workout_time')
+            diet_preference = data.get('diet_preference')
+            food_allergies = data.get('food_allergies', '')
+            health_conditions = data.get('health_conditions', '')
+            trainer_id = data.get('trainer_id')
+            
+            # Validate required fields
+            if not all([age, gender, current_weight, current_height, goal, target_weight, target_months, workout_time, diet_preference]):
+                return JsonResponse({
+                    'success': False,
+                    'message': 'All fields are required except food allergies and health conditions'
+                }, status=400)
+            
+            # Calculate payment amount based on target months
+            payment_map = {1: 399, 2: 499, 3: 699, 6: 1199, 8: 1599, 12: 2199}
+            payment_amount = payment_map.get(int(target_months), 0)
+            
+            # Check if profile already exists and update or create
+            try:
+                profile = UserProfile.objects.get(user=user)
+                # Update existing profile
+                profile.mobile_number = mobile_number
+                profile.age = int(age)
+                profile.gender = gender
+                profile.current_weight = float(current_weight)
+                profile.current_height = float(current_height)
+                profile.goal = goal
+                profile.target_weight = float(target_weight)
+                profile.target_months = int(target_months)
+                profile.workout_time = workout_time
+                profile.diet_preference = diet_preference
+                profile.food_allergies = food_allergies
+                profile.health_conditions = health_conditions
+                profile.payment_amount = payment_amount
+                
+                # Assign trainer if provided
+                if trainer_id:
+                    try:
+                        trainer = Trainer.objects.get(id=trainer_id)
+                        profile.assigned_trainer = trainer
+                    except Trainer.DoesNotExist:
+                        pass
+                
+                profile.save()
+            except UserProfile.DoesNotExist:
+                # Get trainer if provided
+                assigned_trainer = None
+                if trainer_id:
+                    try:
+                        assigned_trainer = Trainer.objects.get(id=trainer_id)
+                    except Trainer.DoesNotExist:
+                        pass
+                
+                # Create new profile with all fields
+                profile = UserProfile.objects.create(
+                    user=user,
+                    mobile_number=mobile_number,
+                    age=int(age),
+                    gender=gender,
+                    current_weight=float(current_weight),
+                    current_height=float(current_height),
+                    goal=goal,
+                    target_weight=float(target_weight),
+                    target_months=int(target_months),
+                    workout_time=workout_time,
+                    diet_preference=diet_preference,
+                    food_allergies=food_allergies,
+                    health_conditions=health_conditions,
+                    payment_amount=payment_amount,
+                    assigned_trainer=assigned_trainer
+                )
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Profile saved successfully',
+                'profile': {
+                    'id': profile.id,
+                    'user_id': user.id,
+                    'age': profile.age,
+                    'gender': profile.gender,
+                    'current_weight': profile.current_weight,
+                    'current_height': profile.current_height,
+                    'goal': profile.goal,
+                    'target_weight': profile.target_weight,
+                    'target_months': profile.target_months,
+                    'workout_time': profile.workout_time,
+                    'diet_preference': profile.diet_preference,
+                    'food_allergies': profile.food_allergies,
+                    'health_conditions': profile.health_conditions,
+                    'payment_amount': profile.payment_amount,
+                    'payment_status': profile.payment_status
+                }
+            }, status=200)
+            
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'message': 'Invalid JSON data'
+            }, status=400)
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            }, status=500)
+    
+    return JsonResponse({
+        'success': False,
+        'message': 'Only POST method is allowed'
+    }, status=405)
+
+
+@csrf_exempt
+def get_profile(request, user_id):
+    """Get user profile by user_id"""
+    if request.method == 'GET':
+        try:
+            print(f"Getting profile for user_id: {user_id}")
+            user = UserLogin.objects.get(id=user_id)
+            try:
+                profile = UserProfile.objects.get(user=user)
+                print(f"Profile found: {profile.id}, payment_status: {profile.payment_status}")
+                
+                # Get trainer info if assigned
+                trainer_info = None
+                if profile.assigned_trainer:
+                    trainer = profile.assigned_trainer
+                    trainer_info = {
+                        'id': trainer.id,
+                        'name': trainer.user.name,
+                        'email': trainer.user.emailid,
+                        'mobile': trainer.mobile,
+                        'experience': trainer.experience,
+                        'specialization': trainer.specialization,
+                        'certification': trainer.certification or 'Not Specified'
+                    }
+                
+                response_data = {
+                    'success': True,
+                    'profile': {
+                        'id': profile.id,
+                        'user_id': user.id,
+                        'mobile_number': profile.mobile_number,
+                        'age': profile.age,
+                        'gender': profile.gender,
+                        'current_weight': profile.current_weight,
+                        'current_height': profile.current_height,
+                        'goal': profile.goal,
+                        'target_weight': profile.target_weight,
+                        'target_months': profile.target_months,
+                        'workout_time': profile.workout_time,
+                        'diet_preference': profile.diet_preference,
+                        'food_allergies': profile.food_allergies,
+                        'health_conditions': profile.health_conditions,
+                        'payment_amount': profile.payment_amount,
+                        'payment_status': profile.payment_status,
+                        'assigned_trainer': trainer_info
+                    }
+                }
+                print(f"Returning response: {response_data}")
+                return JsonResponse(response_data, status=200)
+            except UserProfile.DoesNotExist:
+                print(f"Profile not found for user_id: {user_id}")
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Profile not found'
+                }, status=404)
+        except UserLogin.DoesNotExist:
+            print(f"User not found: {user_id}")
+            return JsonResponse({
+                'success': False,
+                'message': 'User not found'
+            }, status=404)
+        except Exception as e:
+            print(f"Error in get_profile: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            }, status=500)
+    
+    return JsonResponse({
+        'success': False,
+        'message': 'Only GET method is allowed'
+    }, status=405)
+
+
+@csrf_exempt
+def update_payment_status(request):
+    """Update payment status after successful payment"""
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            user_id = data.get('user_id')
+            payment_status = data.get('payment_status', True)
+            
+            if not user_id:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'User ID is required'
+                }, status=400)
+            
+            payment_method = data.get('payment_method', '')
+            
+            user = UserLogin.objects.get(id=user_id)
+            profile = UserProfile.objects.get(user=user)
+            profile.payment_status = payment_status
+            if payment_method:
+                profile.payment_method = payment_method
+            profile.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Payment status updated successfully',
+                'payment_status': profile.payment_status
+            }, status=200)
+            
+        except UserLogin.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': 'User not found'
+            }, status=404)
+        except UserProfile.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': 'Profile not found'
+            }, status=404)
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            }, status=500)
+    
+    return JsonResponse({
+        'success': False,
+        'message': 'Only POST method is allowed'
+    }, status=405)

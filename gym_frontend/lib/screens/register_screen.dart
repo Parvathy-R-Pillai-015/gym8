@@ -99,13 +99,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (mounted) {
-          // Navigate to home screen with user data
+          // Navigate to user profile screen to complete registration
           Future.delayed(const Duration(seconds: 1), () {
             if (mounted) {
               Navigator.pushReplacementNamed(
                 context,
-                '/home',
-                arguments: data['user'], // Pass user data to home screen
+                '/user-profile',
+                arguments: {
+                  'userId': data['user']['id'],
+                  'userName': data['user']['name'],
+                },
               );
             }
           });

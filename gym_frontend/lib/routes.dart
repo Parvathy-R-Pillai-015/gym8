@@ -3,8 +3,10 @@ import 'screens/landing_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/home_screen.dart';
-import 'screens/admin_dashboard.dart';
+import 'screens/admin_dashboard_new.dart';
 import 'screens/add_trainer_screen.dart';
+import 'screens/user_profile_screen.dart';
+import 'screens/payment_screen.dart';
 
 class AppRoutes {
   static const String landing = '/';
@@ -13,15 +15,49 @@ class AppRoutes {
   static const String home = '/home';
   static const String adminDashboard = '/admin-dashboard';
   static const String addTrainer = '/add-trainer';
+  static const String userProfile = '/user-profile';
+  static const String payment = '/payment';
 
   static Map<String, WidgetBuilder> getRoutes() {
     return {
       landing: (context) => const LandingScreen(),
       login: (context) => const LoginScreen(),
       register: (context) => const RegisterScreen(),
-      home: (context) => const HomeScreen(),
-      adminDashboard: (context) => const AdminDashboard(),
+      adminDashboard: (context) => const AdminDashboardNew(),
       addTrainer: (context) => const AddTrainerScreen(),
     };
+  }
+  
+  static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
+    switch (settings.name) {
+      case home:
+        final args = settings.arguments as Map<String, dynamic>;
+        return MaterialPageRoute(
+          builder: (context) => HomeScreen(
+            userId: args['userId'],
+            userName: args['userName'],
+          ),
+        );
+      case userProfile:
+        final args = settings.arguments as Map<String, dynamic>;
+        return MaterialPageRoute(
+          builder: (context) => UserProfileScreen(
+            userId: args['userId'],
+            userName: args['userName'],
+          ),
+        );
+      case payment:
+        final args = settings.arguments as Map<String, dynamic>;
+        return MaterialPageRoute(
+          builder: (context) => PaymentScreen(
+            userId: args['userId'],
+            amount: args['amount'],
+            months: args['months'],
+            userName: args['userName'],
+          ),
+        );
+      default:
+        return null;
+    }
   }
 }

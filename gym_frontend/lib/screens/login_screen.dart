@@ -68,10 +68,14 @@ class _LoginScreenState extends State<LoginScreen> {
           
           // Check user role and route accordingly
           final userRole = data['user']['role'];
+          final userId = data['user']['id'];
+          final userName = data['user']['name'];
+          
           if (userRole == 'admin') {
             Navigator.pushReplacementNamed(context, '/admin-dashboard');
           } else {
-            Navigator.pushReplacementNamed(context, '/home');
+            // Check if user has a profile
+            await _checkUserProfile(userId, userName);
           }
         }
       } else {
@@ -96,6 +100,88 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _checkUserProfile(int userId, String userName) async {
+    try {
+      print('Checking profile for userId: $userId');
+      final response = await http.get(
+        Uri.parse('http://127.0.0.1:8000/api/profile/$userId/'),
+      );
+
+      print('Profile check response status: ${response.statusCode}');
+      print('Profile check response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        print('Decoded data: $data');
+        
+        if (data['success'] == true) {
+          // Profile exists
+          final profile = data['profile'];
+          print('Profile found: $profile');
+          print('Payment status: ${profile['payment_status']}');
+          
+          if (profile['payment_status'] == true) {
+            // Payment completed, go to home
+            print('Navigating to /home');
+            Navigator.pushReplacementNamed(
+              context,
+              '/home',
+              arguments: {
+                'userId': userId,
+                'userName': userName,
+              },
+            );
+          } else {
+            // Payment not completed, go to payment screen
+            print('Navigating to /payment with amount: ${profile['payment_amount']}, months: ${profile['target_months']}');
+            Navigator.pushReplacementNamed(
+              context,
+              '/payment',
+              arguments: {
+                'userId': userId,
+                'amount': profile['payment_amount'],
+                'months': profile['target_months'],
+                'userName': userName,
+              },
+            );
+          }
+        } else {
+          // Profile not found, go to profile screen
+          print('Profile not found, navigating to /user-profile');
+          Navigator.pushReplacementNamed(
+            context,
+            '/user-profile',
+            arguments: {
+              'userId': userId,
+              'userName': userName,
+            },
+          );
+        }
+      } else {
+        // Profile not found, go to profile screen
+        print('Profile not found (non-200 status), navigating to /user-profile');
+        Navigator.pushReplacementNamed(
+          context,
+          '/user-profile',
+          arguments: {
+            'userId': userId,
+            'userName': userName,
+          },
+        );
+      }
+    } catch (e) {
+      // On error, go to profile screen
+      Navigator.pushReplacementNamed(
+        context,
+        '/user-profile',
+        arguments: {
+          'userId': userId,
+          'userName': userName,
+        },
+      );
     }
   }
 
