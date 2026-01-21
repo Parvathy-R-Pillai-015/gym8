@@ -1,10 +1,12 @@
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
 import json
 from datetime import datetime, timedelta, date
 from dateutil.relativedelta import relativedelta
-from .models import UserLogin, Trainer, UserProfile, Attendance, Review, FoodItem, DietPlanTemplate, UserDietPlan
+from .models import UserLogin, Trainer, UserProfile, Attendance, Review, FoodItem, DietPlanTemplate, UserDietPlan, WorkoutVideo, VideoRecommendation
 
 # Create your views here.
 
@@ -600,36 +602,81 @@ def request_attendance(request):
 
 @csrf_exempt
 def get_user_attendance(request, user_id):
-    """Get attendance history for a specific user"""
+    """Get attendance history for a specific user including absent days"""
     if request.method == 'GET':
         try:
             user = UserLogin.objects.get(id=user_id)
+            profile = UserProfile.objects.get(user=user)
+            
+            # Get all attendance records
             attendances = Attendance.objects.filter(user=user).order_by('-date')
             
-            attendance_list = []
+            # Get start date (when user created profile)
+            start_date = profile.created_at.date()
+            today = date.today()
+            
+            # Create a dictionary of dates with attendance
+            attendance_dict = {}
             for att in attendances:
-                attendance_list.append({
+                attendance_dict[att.date] = {
                     'id': att.id,
                     'date': att.date.strftime('%Y-%m-%d'),
                     'status': att.status,
                     'request_date': att.request_date.strftime('%Y-%m-%d %H:%M'),
-                    'accepted_date': att.accepted_date.strftime('%Y-%m-%d %H:%M') if att.accepted_date else None
-                })
+                    'accepted_date': att.accepted_date.strftime('%Y-%m-%d %H:%M') if att.accepted_date else None,
+                    'is_absent': False
+                }
             
+            # Generate full attendance list including absent days (but not today)
+            attendance_list = []
+            current_date = start_date
+            yesterday = today - timedelta(days=1)
+            
+            while current_date <= today:
+                if current_date in attendance_dict:
+                    # Attendance record exists
+                    attendance_list.append(attendance_dict[current_date])
+                elif current_date < today:
+                    # Past date with no attendance record - mark as absent
+                    attendance_list.append({
+                        'id': None,
+                        'date': current_date.strftime('%Y-%m-%d'),
+                        'status': 'absent',
+                        'request_date': None,
+                        'accepted_date': None,
+                        'is_absent': True
+                    })
+                # If current_date == today and no record, don't add anything (user can still request)
+                current_date += timedelta(days=1)
+            
+            # Sort by date descending (newest first)
+            attendance_list.sort(key=lambda x: x['date'], reverse=True)
+            
+            # Calculate statistics (only count past days as absent, not today)
             total_accepted = attendances.filter(status='accepted').count()
             total_pending = attendances.filter(status='pending').count()
+            total_past_days = (yesterday - start_date).days + 1 if yesterday >= start_date else 0
+            total_absent = max(0, total_past_days - attendances.filter(date__lt=today).count())
+            total_days = (today - start_date).days + 1
             
             return JsonResponse({
                 'success': True,
                 'attendances': attendance_list,
                 'total_accepted': total_accepted,
-                'total_pending': total_pending
+                'total_pending': total_pending,
+                'total_absent': total_absent,
+                'total_days': total_days
             }, status=200)
             
         except UserLogin.DoesNotExist:
             return JsonResponse({
                 'success': False,
                 'message': 'User not found'
+            }, status=404)
+        except UserProfile.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': 'User profile not found'
             }, status=404)
         except Exception as e:
             return JsonResponse({
@@ -997,15 +1044,28 @@ def get_diet_templates(request):
     """Get diet plan templates filtered by goal and calorie range"""
     if request.method == 'GET':
         try:
-            goal = request.GET.get('goal')  # weight_loss, weight_gain, muscle_building
+            goal = request.GET.get('goal')  # weight_loss, weight_gain, muscle_building, others
             target_calories = request.GET.get('target_calories')
+            user_weight = request.GET.get('user_weight')  # For 'others' goal weight-based filtering
             
             templates = DietPlanTemplate.objects.all()
             
             if goal:
                 templates = templates.filter(goal_type=goal)
             
-            if target_calories:
+            # For 'others' goal, filter by user weight to get appropriate calorie range
+            if goal == 'others' and user_weight:
+                weight = float(user_weight)
+                # Weight-based calorie ranges for maintenance
+                if weight <= 40:
+                    templates = templates.filter(calorie_min__lte=1500, calorie_max__gte=1200)
+                elif weight <= 50:
+                    templates = templates.filter(calorie_min__lte=1800, calorie_max__gte=1500)
+                elif weight <= 60:
+                    templates = templates.filter(calorie_min__lte=2100, calorie_max__gte=1800)
+                else:  # 61-70kg
+                    templates = templates.filter(calorie_min__lte=2400, calorie_max__gte=2100)
+            elif target_calories:
                 cal = int(target_calories)
                 templates = templates.filter(calorie_min__lte=cal, calorie_max__gte=cal)
             
@@ -1041,36 +1101,48 @@ def get_diet_templates(request):
 
 @csrf_exempt
 def calculate_target_calories(request, user_id):
-    """Calculate recommended daily calories based on user's goal"""
+    """Calculate personalized daily calories based on user's goals and timeline"""
     if request.method == 'GET':
         try:
             user = UserLogin.objects.get(id=user_id)
             profile = UserProfile.objects.get(user=user)
             
-            current_weight = float(profile.current_weight)
-            goal = profile.goal
+            # Check if user has 'others' goal (maintenance calories)
+            if profile.goal == 'others':
+                # For 'others' goal, use maintenance calories (BMR)
+                bmr = profile.current_weight * 24
+                return JsonResponse({
+                    'success': True,
+                    'user_id': user_id,
+                    'goal': 'others',
+                    'current_weight': profile.current_weight,
+                    'target_calories': int(bmr),
+                    'bmr': int(bmr),
+                    'message': 'Maintenance calories for general fitness',
+                    'food_allergies': profile.food_allergies if profile.food_allergies else 'none',
+                    'diet_preference': profile.diet_preference,
+                    'requires_diet_plan': True
+                }, status=200)
             
-            # Calculate base calories
-            if goal == 'weight_loss':
-                target_calories = int(current_weight * 24 - 500)
-            elif goal == 'weight_gain':
-                target_calories = int(current_weight * 24 + 500)
-            elif goal == 'muscle_building':
-                target_calories = int(current_weight * 30)
-            else:
-                target_calories = int(current_weight * 24)
-            
-            # Ensure minimum healthy calories
-            target_calories = max(target_calories, 1200)
+            # Use new personalized calculation method
+            calc_result = profile.calculate_target_calories()
             
             return JsonResponse({
                 'success': True,
                 'user_id': user_id,
-                'goal': goal,
-                'current_weight': current_weight,
-                'target_calories': target_calories,
+                'goal': profile.goal,
+                'current_weight': profile.current_weight,
+                'target_weight': profile.target_weight,
+                'target_months': profile.target_months,
+                'target_calories': calc_result['target_calories'],
+                'bmr': calc_result['bmr'],
+                'weekly_change': calc_result['weekly_change'],
+                'daily_adjustment': calc_result['daily_adjustment'],
+                'is_safe': calc_result['is_safe'],
+                'warnings': calc_result['warnings'],
                 'food_allergies': profile.food_allergies if profile.food_allergies else 'none',
-                'diet_preference': profile.diet_preference
+                'diet_preference': profile.diet_preference,
+                'requires_diet_plan': True
             }, status=200)
             
         except UserLogin.DoesNotExist:
@@ -1267,4 +1339,374 @@ def get_trainer_diet_plans(request, trainer_id):
     return JsonResponse({
         'success': False,
         'message': 'Only GET method is allowed'
+    }, status=405)
+# ============================================================================
+# WORKOUT VIDEO MANAGEMENT VIEWS
+# ============================================================================
+
+@csrf_exempt
+def upload_video(request):
+    """
+    Upload a workout video (trainer only)
+    """
+    if request.method == 'POST':
+        try:
+            trainer_id = request.POST.get('trainer_id')
+            title = request.POST.get('title')
+            description = request.POST.get('description')
+            goal_type = request.POST.get('goal_type')
+            difficulty_level = request.POST.get('difficulty_level')
+            video_file = request.FILES.get('video_file')
+            thumbnail = request.FILES.get('thumbnail')
+            duration = request.POST.get('duration')
+            
+            if not all([trainer_id, title, description, goal_type, difficulty_level, video_file]):
+                return JsonResponse({
+                    'success': False,
+                    'message': 'All required fields must be provided'
+                }, status=400)
+            
+            # Get trainer
+            try:
+                trainer = Trainer.objects.get(id=trainer_id)
+            except Trainer.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Trainer not found'
+                }, status=404)
+            
+            # Set weight difference based on difficulty level
+            if difficulty_level == 'beginner':
+                min_weight_diff = 0
+                max_weight_diff = 10
+            else:  # advanced
+                min_weight_diff = 11
+                max_weight_diff = 30
+            
+            # Create video
+            video = WorkoutVideo.objects.create(
+                title=title,
+                description=description,
+                video_file=video_file,
+                thumbnail=thumbnail,
+                goal_type=goal_type,
+                difficulty_level=difficulty_level,
+                min_weight_difference=min_weight_diff,
+                max_weight_difference=max_weight_diff,
+                duration=int(duration) if duration else None,
+                uploaded_by=trainer,
+                uploaded_via='web'  # Mark as web upload
+            )
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Video uploaded successfully',
+                'video': {
+                    'id': video.id,
+                    'title': video.title,
+                    'goal_type': video.goal_type,
+                    'difficulty_level': video.difficulty_level
+                }
+            }, status=201)
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            }, status=500)
+    
+    return JsonResponse({
+        'success': False,
+        'message': 'Only POST method is allowed'
+    }, status=405)
+
+
+@csrf_exempt
+def list_trainer_videos(request, trainer_id):
+    """
+    List all videos uploaded by a specific trainer (web uploads only, not bulk)
+    """
+    if request.method == 'GET':
+        try:
+            trainer = Trainer.objects.get(id=trainer_id)
+            videos = WorkoutVideo.objects.filter(uploaded_by=trainer, uploaded_via='web', is_active=True).order_by('-created_at')
+            
+            video_list = []
+            for video in videos:
+                video_list.append({
+                    'id': video.id,
+                    'title': video.title,
+                    'description': video.description,
+                    'video_url': video.video_file.url if video.video_file else None,
+                    'thumbnail_url': video.thumbnail.url if video.thumbnail else None,
+                    'goal_type': video.goal_type,
+                    'difficulty_level': video.difficulty_level,
+                    'weight_range': f"{video.min_weight_difference}-{video.max_weight_difference}kg",
+                    'duration': video.duration,
+                    'created_at': video.created_at.strftime('%Y-%m-%d')
+                })
+            
+            return JsonResponse({
+                'success': True,
+                'videos': video_list,
+                'total': len(video_list)
+            }, status=200)
+            
+        except Trainer.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': 'Trainer not found'
+            }, status=404)
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            }, status=500)
+    
+    return JsonResponse({
+        'success': False,
+        'message': 'Only GET method is allowed'
+    }, status=405)
+
+
+@csrf_exempt
+def get_user_videos(request, user_id):
+    """
+    Get filtered videos for a specific user based on their goal and weight difference
+    Daily progression: Show one video per day based on user's enrollment date
+    """
+    if request.method == 'GET':
+        try:
+            user_profile = UserProfile.objects.get(user_id=user_id)
+            
+            # Calculate weight difference
+            if user_profile.goal == 'others':
+                weight_difference = 0  # General fitness, show beginner videos
+            else:
+                weight_difference = abs(user_profile.target_weight - user_profile.current_weight)
+            
+            # Calculate days since enrollment (starting from day 1)
+            days_enrolled = (date.today() - user_profile.created_at.date()).days + 1
+            
+            # Video filtering based on weight difference
+            if weight_difference <= 10:
+                # User needs to lose/gain 0-10kg: Show beginner videos
+                difficulty_filter = ['beginner']
+            else:
+                # User needs to lose/gain more than 10kg: Show all videos
+                difficulty_filter = ['beginner', 'advanced']
+            
+            # Get all videos for the user's goal and difficulty level, ordered by day_number
+            all_videos = WorkoutVideo.objects.filter(
+                goal_type=user_profile.goal,
+                difficulty_level__in=difficulty_filter,
+                is_active=True
+            ).exclude(
+                day_number__isnull=True  # Only videos with day numbers (bulk videos)
+            ).order_by('day_number')
+            
+            # Get web-uploaded videos (no day restriction)
+            web_videos = WorkoutVideo.objects.filter(
+                goal_type=user_profile.goal,
+                difficulty_level__in=difficulty_filter,
+                is_active=True,
+                uploaded_via='web',
+                day_number__isnull=True
+            ).order_by('-created_at')
+            
+            # Get trainer-recommended videos
+            recommended_video_ids = VideoRecommendation.objects.filter(
+                user=user_profile
+            ).values_list('video_id', flat=True)
+            
+            video_list = []
+            
+            # Add daily progression videos (unlock based on days enrolled)
+            for video in all_videos:
+                is_unlocked = video.day_number <= days_enrolled
+                is_recommended = video.id in recommended_video_ids
+                recommendation = None
+                
+                if is_recommended:
+                    rec = VideoRecommendation.objects.get(video=video, user=user_profile)
+                    recommendation = {
+                        'note': rec.note,
+                        'recommended_by': rec.recommended_by.user.name,
+                        'recommended_at': rec.created_at.strftime('%Y-%m-%d')
+                    }
+                
+                video_list.append({
+                    'id': video.id,
+                    'title': video.title,
+                    'description': video.description,
+                    'video_url': video.video_file.url if (video.video_file and is_unlocked) else None,
+                    'thumbnail_url': video.thumbnail.url if video.thumbnail else None,
+                    'goal_type': video.goal_type,
+                    'difficulty_level': video.difficulty_level,
+                    'weight_range': f"{video.min_weight_difference}-{video.max_weight_difference}kg",
+                    'duration': video.duration,
+                    'is_recommended': is_recommended,
+                    'recommendation': recommendation,
+                    'day_number': video.day_number,
+                    'is_unlocked': is_unlocked,
+                    'unlock_day': video.day_number,
+                    'created_at': video.created_at.strftime('%Y-%m-%d')
+                })
+            
+            # Add web-uploaded videos (always available)
+            for video in web_videos:
+                is_recommended = video.id in recommended_video_ids
+                recommendation = None
+                
+                if is_recommended:
+                    rec = VideoRecommendation.objects.get(video=video, user=user_profile)
+                    recommendation = {
+                        'note': rec.note,
+                        'recommended_by': rec.recommended_by.user.name,
+                        'recommended_at': rec.created_at.strftime('%Y-%m-%d')
+                    }
+                
+                video_list.append({
+                    'id': video.id,
+                    'title': video.title,
+                    'description': video.description,
+                    'video_url': video.video_file.url if video.video_file else None,
+                    'thumbnail_url': video.thumbnail.url if video.thumbnail else None,
+                    'goal_type': video.goal_type,
+                    'difficulty_level': video.difficulty_level,
+                    'weight_range': f"{video.min_weight_difference}-{video.max_weight_difference}kg",
+                    'duration': video.duration,
+                    'is_recommended': is_recommended,
+                    'recommendation': recommendation,
+                    'day_number': None,
+                    'is_unlocked': True,  # Web videos always unlocked
+                    'unlock_day': None,
+                    'created_at': video.created_at.strftime('%Y-%m-%d')
+                })
+            
+            return JsonResponse({
+                'success': True,
+                'videos': video_list,
+                'total': len(video_list),
+                'user_info': {
+                    'goal': user_profile.goal,
+                    'weight_difference': weight_difference,
+                    'days_enrolled': days_enrolled,
+                    'unlock_status': f"Day {days_enrolled}: {len([v for v in video_list if v.get('is_unlocked')])} videos available"
+                }
+            }, status=200)
+            
+        except UserProfile.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': 'User profile not found'
+            }, status=404)
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            }, status=500)
+    
+    return JsonResponse({
+        'success': False,
+        'message': 'Only GET method is allowed'
+    }, status=405)
+
+
+@csrf_exempt
+def delete_video(request, video_id):
+    """
+    Delete a video (soft delete by setting is_active to False)
+    """
+    if request.method == 'DELETE':
+        try:
+            video = WorkoutVideo.objects.get(id=video_id)
+            video.is_active = False
+            video.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Video deleted successfully'
+            }, status=200)
+            
+        except WorkoutVideo.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': 'Video not found'
+            }, status=404)
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            }, status=500)
+    
+    return JsonResponse({
+        'success': False,
+        'message': 'Only DELETE method is allowed'
+    }, status=405)
+
+
+@csrf_exempt
+def recommend_video_to_user(request):
+    """
+    Trainer recommends a specific video to a user
+    """
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            video_id = data.get('video_id')
+            user_id = data.get('user_id')
+            trainer_id = data.get('trainer_id')
+            note = data.get('note', '')
+            
+            if not all([video_id, user_id, trainer_id]):
+                return JsonResponse({
+                    'success': False,
+                    'message': 'video_id, user_id, and trainer_id are required'
+                }, status=400)
+            
+            video = WorkoutVideo.objects.get(id=video_id)
+            user_profile = UserProfile.objects.get(user_id=user_id)
+            trainer = Trainer.objects.get(id=trainer_id)
+            
+            # Create or update recommendation
+            recommendation, created = VideoRecommendation.objects.update_or_create(
+                video=video,
+                user=user_profile,
+                defaults={
+                    'recommended_by': trainer,
+                    'note': note
+                }
+            )
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Video recommended successfully',
+                'is_new': created
+            }, status=201 if created else 200)
+            
+        except WorkoutVideo.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': 'Video not found'
+            }, status=404)
+        except UserProfile.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': 'User profile not found'
+            }, status=404)
+        except Trainer.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': 'Trainer not found'
+            }, status=404)
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            }, status=500)
+    
+    return JsonResponse({
+        'success': False,
+        'message': 'Only POST method is allowed'
     }, status=405)

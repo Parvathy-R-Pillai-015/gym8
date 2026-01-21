@@ -1,0 +1,75 @@
+import os
+import django
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'gym_backend.settings')
+django.setup()
+
+from users.models import DietPlanTemplate
+
+print("="*80)
+print("CREATING HIGH CALORIE WEIGHT_GAIN TEMPLATES (2200-2600 cal)")
+print("="*80)
+
+# 2200-2600 calorie range for weight gain
+DietPlanTemplate.objects.create(
+    name="Weight Gain - Vegan High (2200-2600)",
+    goal_type="weight_gain",
+    calorie_min=2200,
+    calorie_max=2600,
+    description="7-day high calorie vegan weight gain plan",
+    meals_data={
+        "monday": {"breakfast": [{"food": "Oats", "quantity": "90g"}, {"food": "Banana", "quantity": "2 medium"}, {"food": "Almonds", "quantity": "25g"}, {"food": "Peanut butter", "quantity": "20g"}], "lunch": [{"food": "Rice (brown, cooked)", "quantity": "150g"}, {"food": "Lentils (cooked)", "quantity": "150g"}, {"food": "Tofu", "quantity": "100g"}, {"food": "Mixed vegetables", "quantity": "100g"}], "dinner": [{"food": "Quinoa", "quantity": "130g"}, {"food": "Chickpeas (cooked)", "quantity": "150g"}, {"food": "Avocado", "quantity": "80g"}, {"food": "Spinach", "quantity": "100g"}], "snacks": [{"food": "Banana", "quantity": "2 medium"}, {"food": "Cashews", "quantity": "30g"}, {"food": "Dates", "quantity": "40g"}, {"food": "Almonds", "quantity": "20g"}]},
+        "tuesday": {"breakfast": [{"food": "Bread (whole wheat)", "quantity": "4 slices"}, {"food": "Peanut butter", "quantity": "30g"}, {"food": "Banana", "quantity": "2 medium"}], "lunch": [{"food": "Roti (wheat)", "quantity": "5 pieces"}, {"food": "Black beans", "quantity": "150g"}, {"food": "Sweet potato", "quantity": "150g"}], "dinner": [{"food": "Rice (brown, cooked)", "quantity": "150g"}, {"food": "Lentils (cooked)", "quantity": "140g"}, {"food": "Tofu", "quantity": "100g"}], "snacks": [{"food": "Mango", "quantity": "150g"}, {"food": "Walnuts", "quantity": "30g"}, {"food": "Banana", "quantity": "2 medium"}]},
+        "wednesday": {"breakfast": [{"food": "Oats", "quantity": "95g"}, {"food": "Mango", "quantity": "120g"}, {"food": "Walnuts", "quantity": "25g"}], "lunch": [{"food": "Quinoa", "quantity": "140g"}, {"food": "Chickpeas (cooked)", "quantity": "150g"}, {"food": "Avocado", "quantity": "70g"}], "dinner": [{"food": "Roti (wheat)", "quantity": "5 pieces"}, {"food": "Tofu", "quantity": "120g"}, {"food": "Mixed vegetables", "quantity": "120g"}], "snacks": [{"food": "Orange", "quantity": "2 medium"}, {"food": "Almonds", "quantity": "30g"}, {"food": "Dates", "quantity": "50g"}]},
+        "thursday": {"breakfast": [{"food": "Bread (whole wheat)", "quantity": "4 slices"}, {"food": "Almond butter", "quantity": "25g"}, {"food": "Orange", "quantity": "2 medium"}], "lunch": [{"food": "Rice (white, cooked)", "quantity": "150g"}, {"food": "Lentils (cooked)", "quantity": "150g"}, {"food": "Sweet potato", "quantity": "120g"}], "dinner": [{"food": "Quinoa", "quantity": "130g"}, {"food": "Black beans", "quantity": "140g"}, {"food": "Avocado", "quantity": "80g"}], "snacks": [{"food": "Banana", "quantity": "3 medium"}, {"food": "Cashews", "quantity": "30g"}, {"food": "Peanuts", "quantity": "20g"}]},
+        "friday": {"breakfast": [{"food": "Oats", "quantity": "90g"}, {"food": "Banana", "quantity": "2 medium"}, {"food": "Peanut butter", "quantity": "25g"}], "lunch": [{"food": "Roti (wheat)", "quantity": "5 pieces"}, {"food": "Chickpeas (cooked)", "quantity": "150g"}, {"food": "Spinach", "quantity": "100g"}], "dinner": [{"food": "Rice (brown, cooked)", "quantity": "150g"}, {"food": "Tofu", "quantity": "120g"}, {"food": "Mixed vegetables", "quantity": "120g"}], "snacks": [{"food": "Mango", "quantity": "130g"}, {"food": "Walnuts", "quantity": "30g"}, {"food": "Dates", "quantity": "45g"}]},
+        "saturday": {"breakfast": [{"food": "Bread (whole wheat)", "quantity": "4 slices"}, {"food": "Peanut butter", "quantity": "30g"}, {"food": "Mango", "quantity": "100g"}], "lunch": [{"food": "Quinoa", "quantity": "140g"}, {"food": "Lentils (cooked)", "quantity": "150g"}, {"food": "Avocado", "quantity": "70g"}], "dinner": [{"food": "Roti (wheat)", "quantity": "5 pieces"}, {"food": "Black beans", "quantity": "140g"}, {"food": "Sweet potato", "quantity": "120g"}], "snacks": [{"food": "Banana", "quantity": "2 medium"}, {"food": "Almonds", "quantity": "30g"}, {"food": "Orange", "quantity": "1 medium"}]},
+        "sunday": {"breakfast": [{"food": "Oats", "quantity": "95g"}, {"food": "Banana", "quantity": "2 medium"}, {"food": "Cashews", "quantity": "25g"}], "lunch": [{"food": "Rice (white, cooked)", "quantity": "150g"}, {"food": "Chickpeas (cooked)", "quantity": "150g"}, {"food": "Spinach", "quantity": "100g"}], "dinner": [{"food": "Quinoa", "quantity": "130g"}, {"food": "Tofu", "quantity": "120g"}, {"food": "Mixed vegetables", "quantity": "120g"}], "snacks": [{"food": "Apple", "quantity": "2 medium"}, {"food": "Walnuts", "quantity": "30g"}, {"food": "Dates", "quantity": "50g"}]}
+    }
+)
+print("✓ Created: Weight Gain - Vegan High (2200-2600)")
+
+DietPlanTemplate.objects.create(
+    name="Weight Gain - Vegetarian High (2200-2600)",
+    goal_type="weight_gain",
+    calorie_min=2200,
+    calorie_max=2600,
+    description="7-day high calorie vegetarian weight gain plan",
+    meals_data={
+        "monday": {"breakfast": [{"food": "Oats", "quantity": "85g"}, {"food": "Banana", "quantity": "2 medium"}, {"food": "Milk (whole)", "quantity": "300ml"}, {"food": "Almonds", "quantity": "20g"}], "lunch": [{"food": "Rice (brown, cooked)", "quantity": "150g"}, {"food": "Paneer", "quantity": "120g"}, {"food": "Spinach", "quantity": "100g"}, {"food": "Ghee", "quantity": "10g"}], "dinner": [{"food": "Roti (wheat)", "quantity": "5 pieces"}, {"food": "Lentils (cooked)", "quantity": "140g"}, {"food": "Curd", "quantity": "150g"}], "snacks": [{"food": "Banana", "quantity": "2 medium"}, {"food": "Eggs (boiled)", "quantity": "2 pieces"}, {"food": "Cashews", "quantity": "25g"}, {"food": "Milk (whole)", "quantity": "200ml"}]},
+        "tuesday": {"breakfast": [{"food": "Bread (whole wheat)", "quantity": "4 slices"}, {"food": "Eggs (scrambled)", "quantity": "3 pieces"}, {"food": "Butter", "quantity": "15g"}], "lunch": [{"food": "Quinoa", "quantity": "140g"}, {"food": "Chickpeas (cooked)", "quantity": "140g"}, {"food": "Paneer", "quantity": "100g"}], "dinner": [{"food": "Rice (brown, cooked)", "quantity": "150g"}, {"food": "Paneer", "quantity": "120g"}, {"food": "Mixed vegetables", "quantity": "120g"}], "snacks": [{"food": "Milk (whole)", "quantity": "300ml"}, {"food": "Walnuts", "quantity": "25g"}, {"food": "Banana", "quantity": "2 medium"}]},
+        "wednesday": {"breakfast": [{"food": "Oats", "quantity": "90g"}, {"food": "Banana", "quantity": "2 medium"}, {"food": "Cashews", "quantity": "20g"}, {"food": "Milk (whole)", "quantity": "250ml"}], "lunch": [{"food": "Roti (wheat)", "quantity": "5 pieces"}, {"food": "Lentils (cooked)", "quantity": "140g"}, {"food": "Curd", "quantity": "150g"}], "dinner": [{"food": "Quinoa", "quantity": "130g"}, {"food": "Paneer", "quantity": "120g"}, {"food": "Broccoli", "quantity": "100g"}], "snacks": [{"food": "Orange", "quantity": "2 medium"}, {"food": "Eggs (boiled)", "quantity": "2 pieces"}, {"food": "Almonds", "quantity": "25g"}]},
+        "thursday": {"breakfast": [{"food": "Bread (whole wheat)", "quantity": "4 slices"}, {"food": "Butter", "quantity": "15g"}, {"food": "Milk (whole)", "quantity": "300ml"}], "lunch": [{"food": "Rice (white, cooked)", "quantity": "150g"}, {"food": "Chickpeas (cooked)", "quantity": "140g"}, {"food": "Paneer", "quantity": "100g"}], "dinner": [{"food": "Roti (wheat)", "quantity": "5 pieces"}, {"food": "Lentils (cooked)", "quantity": "140g"}, {"food": "Curd", "quantity": "150g"}], "snacks": [{"food": "Banana", "quantity": "2 medium"}, {"food": "Cashews", "quantity": "25g"}, {"food": "Eggs (boiled)", "quantity": "2 pieces"}]},
+        "friday": {"breakfast": [{"food": "Oats", "quantity": "85g"}, {"food": "Orange", "quantity": "2 medium"}, {"food": "Eggs (boiled)", "quantity": "3 pieces"}], "lunch": [{"food": "Quinoa", "quantity": "140g"}, {"food": "Paneer", "quantity": "120g"}, {"food": "Spinach", "quantity": "100g"}], "dinner": [{"food": "Rice (brown, cooked)", "quantity": "150g"}, {"food": "Lentils (cooked)", "quantity": "140g"}, {"food": "Curd", "quantity": "150g"}], "snacks": [{"food": "Banana", "quantity": "2 medium"}, {"food": "Milk (whole)", "quantity": "300ml"}, {"food": "Walnuts", "quantity": "25g"}]},
+        "saturday": {"breakfast": [{"food": "Bread (whole wheat)", "quantity": "4 slices"}, {"food": "Eggs (scrambled)", "quantity": "3 pieces"}, {"food": "Mango", "quantity": "100g"}], "lunch": [{"food": "Roti (wheat)", "quantity": "5 pieces"}, {"food": "Chickpeas (cooked)", "quantity": "140g"}, {"food": "Paneer", "quantity": "100g"}], "dinner": [{"food": "Quinoa", "quantity": "130g"}, {"food": "Lentils (cooked)", "quantity": "140g"}, {"food": "Curd", "quantity": "150g"}], "snacks": [{"food": "Apple", "quantity": "1 medium"}, {"food": "Cashews", "quantity": "25g"}, {"food": "Orange", "quantity": "1 medium"}, {"food": "Milk (whole)", "quantity": "200ml"}]},
+        "sunday": {"breakfast": [{"food": "Oats", "quantity": "90g"}, {"food": "Banana", "quantity": "2 medium"}, {"food": "Almonds", "quantity": "20g"}, {"food": "Milk (whole)", "quantity": "250ml"}], "lunch": [{"food": "Rice (white, cooked)", "quantity": "150g"}, {"food": "Paneer", "quantity": "120g"}, {"food": "Spinach", "quantity": "100g"}], "dinner": [{"food": "Roti (wheat)", "quantity": "5 pieces"}, {"food": "Lentils (cooked)", "quantity": "140g"}, {"food": "Curd", "quantity": "150g"}], "snacks": [{"food": "Orange", "quantity": "2 medium"}, {"food": "Eggs (boiled)", "quantity": "2 pieces"}, {"food": "Walnuts", "quantity": "25g"}]}
+    }
+)
+print("✓ Created: Weight Gain - Vegetarian High (2200-2600)")
+
+DietPlanTemplate.objects.create(
+    name="Weight Gain - Non-Veg High (2200-2600)",
+    goal_type="weight_gain",
+    calorie_min=2200,
+    calorie_max=2600,
+    description="7-day high calorie non-veg weight gain plan",
+    meals_data={
+        "monday": {"breakfast": [{"food": "Oats", "quantity": "80g"}, {"food": "Banana", "quantity": "2 medium"}, {"food": "Eggs (boiled)", "quantity": "3 pieces"}, {"food": "Almonds", "quantity": "20g"}], "lunch": [{"food": "Rice (brown, cooked)", "quantity": "150g"}, {"food": "Chicken breast", "quantity": "130g"}, {"food": "Broccoli", "quantity": "100g"}, {"food": "Ghee", "quantity": "10g"}], "dinner": [{"food": "Roti (wheat)", "quantity": "5 pieces"}, {"food": "Lentils (cooked)", "quantity": "130g"}, {"food": "Chicken curry", "quantity": "100g"}], "snacks": [{"food": "Banana", "quantity": "2 medium"}, {"food": "Eggs (boiled)", "quantity": "2 pieces"}, {"food": "Cashews", "quantity": "25g"}, {"food": "Apple", "quantity": "1 medium"}]},
+        "tuesday": {"breakfast": [{"food": "Bread (whole wheat)", "quantity": "4 slices"}, {"food": "Eggs (scrambled)", "quantity": "4 pieces"}, {"food": "Orange", "quantity": "1 medium"}], "lunch": [{"food": "Quinoa", "quantity": "140g"}, {"food": "Chicken thigh", "quantity": "120g"}, {"food": "Mixed vegetables", "quantity": "120g"}], "dinner": [{"food": "Rice (brown, cooked)", "quantity": "150g"}, {"food": "Fish", "quantity": "120g"}, {"food": "Spinach", "quantity": "100g"}], "snacks": [{"food": "Banana", "quantity": "2 medium"}, {"food": "Walnuts", "quantity": "25g"}, {"food": "Eggs (boiled)", "quantity": "2 pieces"}]},
+        "wednesday": {"breakfast": [{"food": "Oats", "quantity": "85g"}, {"food": "Orange", "quantity": "2 medium"}, {"food": "Eggs (boiled)", "quantity": "3 pieces"}], "lunch": [{"food": "Roti (wheat)", "quantity": "5 pieces"}, {"food": "Mutton", "quantity": "120g"}, {"food": "Potato", "quantity": "120g"}], "dinner": [{"food": "Quinoa", "quantity": "130g"}, {"food": "Chicken breast", "quantity": "130g"}, {"food": "Broccoli", "quantity": "100g"}], "snacks": [{"food": "Apple", "quantity": "1 medium"}, {"food": "Cashews", "quantity": "25g"}, {"food": "Banana", "quantity": "2 medium"}, {"food": "Eggs (boiled)", "quantity": "1 piece"}]},
+        "thursday": {"breakfast": [{"food": "Bread (whole wheat)", "quantity": "4 slices"}, {"food": "Eggs (scrambled)", "quantity": "4 pieces"}, {"food": "Mango", "quantity": "80g"}], "lunch": [{"food": "Rice (white, cooked)", "quantity": "150g"}, {"food": "Chicken curry", "quantity": "130g"}, {"food": "Spinach", "quantity": "100g"}], "dinner": [{"food": "Roti (wheat)", "quantity": "5 pieces"}, {"food": "Fish", "quantity": "120g"}, {"food": "Mixed vegetables", "quantity": "120g"}], "snacks": [{"food": "Orange", "quantity": "2 medium"}, {"food": "Peanuts", "quantity": "30g"}, {"food": "Banana", "quantity": "2 medium"}]},
+        "friday": {"breakfast": [{"food": "Oats", "quantity": "80g"}, {"food": "Banana", "quantity": "2 medium"}, {"food": "Eggs (boiled)", "quantity": "3 pieces"}], "lunch": [{"food": "Quinoa", "quantity": "140g"}, {"food": "Chicken thigh", "quantity": "120g"}, {"food": "Broccoli", "quantity": "100g"}], "dinner": [{"food": "Rice (brown, cooked)", "quantity": "150g"}, {"food": "Mutton", "quantity": "110g"}, {"food": "Carrot", "quantity": "100g"}], "snacks": [{"food": "Apple", "quantity": "1 medium"}, {"food": "Almonds", "quantity": "25g"}, {"food": "Orange", "quantity": "1 medium"}, {"food": "Eggs (boiled)", "quantity": "2 pieces"}]},
+        "saturday": {"breakfast": [{"food": "Bread (whole wheat)", "quantity": "4 slices"}, {"food": "Eggs (scrambled)", "quantity": "4 pieces"}, {"food": "Orange", "quantity": "1 medium"}], "lunch": [{"food": "Roti (wheat)", "quantity": "5 pieces"}, {"food": "Chicken breast", "quantity": "130g"}, {"food": "Mixed vegetables", "quantity": "120g"}], "dinner": [{"food": "Quinoa", "quantity": "130g"}, {"food": "Fish", "quantity": "120g"}, {"food": "Spinach", "quantity": "100g"}], "snacks": [{"food": "Banana", "quantity": "2 medium"}, {"food": "Walnuts", "quantity": "25g"}, {"food": "Eggs (boiled)", "quantity": "2 pieces"}]},
+        "sunday": {"breakfast": [{"food": "Oats", "quantity": "85g"}, {"food": "Mango", "quantity": "100g"}, {"food": "Eggs (boiled)", "quantity": "3 pieces"}], "lunch": [{"food": "Rice (white, cooked)", "quantity": "150g"}, {"food": "Chicken curry", "quantity": "130g"}, {"food": "Broccoli", "quantity": "100g"}], "dinner": [{"food": "Roti (wheat)", "quantity": "5 pieces"}, {"food": "Mutton", "quantity": "110g"}, {"food": "Carrot", "quantity": "100g"}], "snacks": [{"food": "Apple", "quantity": "1 medium"}, {"food": "Cashews", "quantity": "25g"}, {"food": "Orange", "quantity": "1 medium"}, {"food": "Banana", "quantity": "1 medium"}]}
+    }
+)
+print("✓ Created: Weight Gain - Non-Veg High (2200-2600)")
+
+print("\n" + "="*80)
+print("✅ HIGH CALORIE WEIGHT_GAIN TEMPLATES CREATED!")
+print("="*80)
+templates = DietPlanTemplate.objects.filter(goal_type='weight_gain').order_by('calorie_min')
+for t in templates:
+    print(f"  {t.calorie_min:4d}-{t.calorie_max:4d} cal | {t.name}")
+print(f"\nTotal: {templates.count()} weight_gain templates")
+print("\n✅ Aiswarya (2208 cal) now has matching templates!")

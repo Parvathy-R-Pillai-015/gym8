@@ -192,7 +192,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             'current_weight': _currentWeightController.text.isEmpty ? 0.0 : double.parse(_currentWeightController.text),
             'current_height': _currentHeightController.text.isEmpty ? 0.0 : double.parse(_currentHeightController.text),
             'goal': _selectedGoal ?? '',
-            'target_weight': _targetWeightController.text.isEmpty ? 0.0 : double.parse(_targetWeightController.text),
+            // For 'others' goal, target_weight = current_weight (maintenance)
+            'target_weight': _selectedGoal == 'others' 
+                ? (_currentWeightController.text.isEmpty ? 0.0 : double.parse(_currentWeightController.text))
+                : (_targetWeightController.text.isEmpty ? 0.0 : double.parse(_targetWeightController.text)),
             'target_months': _selectedTargetMonths ?? 1,
             'workout_time': _selectedWorkoutTime ?? '',
             'diet_preference': _selectedDietPreference ?? '',
@@ -429,21 +432,24 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 const SizedBox(height: 16),
               ],
               
-              TextFormField(
-                controller: _targetWeightController,
-                decoration: const InputDecoration(
-                  labelText: 'Target Weight (kg)',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.track_changes),
+              // Only show target weight if goal is not 'others'
+              if (_selectedGoal != 'others') ...[
+                TextFormField(
+                  controller: _targetWeightController,
+                  decoration: const InputDecoration(
+                    labelText: 'Target Weight (kg)',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.track_changes),
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) return 'Please enter your target weight';
+                    if (double.tryParse(value) == null) return 'Please enter a valid number';
+                    return null;
+                  },
                 ),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) return 'Please enter your target weight';
-                  if (double.tryParse(value) == null) return 'Please enter a valid number';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
+              ],
               
               DropdownButtonFormField<int>(
                 decoration: const InputDecoration(

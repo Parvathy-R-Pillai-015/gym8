@@ -16,6 +16,8 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from django.conf import settings
+from django.conf.urls.static import static
 from users import views, admin_views
 
 urlpatterns = [
@@ -49,6 +51,13 @@ urlpatterns = [
     path('api/diet/plan/user/<int:user_id>/', views.get_user_diet_plan, name='get_user_diet_plan'),
     path('api/diet/plans/trainer/<int:trainer_id>/', views.get_trainer_diet_plans, name='get_trainer_diet_plans'),
     
+    # Video APIs
+    path('api/videos/upload/', views.upload_video, name='upload_video'),
+    path('api/videos/trainer/<int:trainer_id>/', views.list_trainer_videos, name='list_trainer_videos'),
+    path('api/videos/user/<int:user_id>/', views.get_user_videos, name='get_user_videos'),
+    path('api/videos/<int:video_id>/delete/', views.delete_video, name='delete_video'),
+    path('api/videos/recommend/', views.recommend_video_to_user, name='recommend_video_to_user'),
+    
     # Admin APIs
     path('api/admin/users/all/', admin_views.get_all_users, name='get_all_users'),
     path('api/admin/users/paid/', admin_views.get_paid_users, name='get_paid_users'),
@@ -61,3 +70,8 @@ urlpatterns = [
     path('api/admin/trainers/', admin_views.get_all_trainers, name='get_all_trainers'),
     path('api/admin/trainers/<str:goal>/', admin_views.get_trainers_by_goal, name='get_trainers_by_goal'),
 ]
+
+# Serve media files in development
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'video_upload_screen.dart';
+import 'manage_videos_screen.dart';
 
 class TrainerDashboard extends StatefulWidget {
   final int trainerId;
@@ -50,8 +52,23 @@ class _TrainerDashboardState extends State<TrainerDashboard> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success']) {
+          final users = List<Map<String, dynamic>>.from(data['users']);
+          
+          // Check diet plan status for each user
+          for (var user in users) {
+            final dietResponse = await http.get(
+              Uri.parse('http://127.0.0.1:8000/api/diet/plan/user/${user['id']}/')
+            );
+            if (dietResponse.statusCode == 200) {
+              final dietData = json.decode(dietResponse.body);
+              user['has_diet_plan'] = dietData['success'] == true && dietData['diet_plan'] != null;
+            } else {
+              user['has_diet_plan'] = false;
+            }
+          }
+          
           setState(() {
-            _assignedUsers = List<Map<String, dynamic>>.from(data['users']);
+            _assignedUsers = users;
           });
         }
       }
@@ -152,6 +169,7 @@ class _TrainerDashboardState extends State<TrainerDashboard> {
             List<Map<String, dynamic>>.from(data['attendances']),
             data['total_accepted'],
             data['total_pending'],
+            data['total_absent'] ?? 0,
           );
         }
       }
@@ -170,6 +188,7 @@ class _TrainerDashboardState extends State<TrainerDashboard> {
     List<Map<String, dynamic>> attendances,
     int totalAccepted,
     int totalPending,
+    int totalAbsent,
   ) {
     showDialog(
       context: context,
@@ -197,7 +216,7 @@ class _TrainerDashboardState extends State<TrainerDashboard> {
                               color: Color(0xFF7B4EFF),
                             ),
                           ),
-                          const Text('Total Accepted'),
+                          const Text('Accepted'),
                         ],
                       ),
                       Column(
@@ -213,6 +232,19 @@ class _TrainerDashboardState extends State<TrainerDashboard> {
                           const Text('Pending'),
                         ],
                       ),
+                      Column(
+                        children: [
+                          Text(
+                            '$totalAbsent',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red,
+                            ),
+                          ),
+                          const Text('Absent'),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -223,21 +255,26 @@ class _TrainerDashboardState extends State<TrainerDashboard> {
                   itemCount: attendances.length,
                   itemBuilder: (context, index) {
                     final att = attendances[index];
+                    final status = att['status'];
                     return ListTile(
                       leading: Icon(
-                        att['status'] == 'accepted'
+                        status == 'accepted'
                             ? Icons.check_circle
-                            : att['status'] == 'pending'
+                            : status == 'pending'
                             ? Icons.pending
+                            : status == 'absent'
+                            ? Icons.event_busy
                             : Icons.cancel,
-                        color: att['status'] == 'accepted'
+                        color: status == 'accepted'
                             ? Colors.green
-                            : att['status'] == 'pending'
+                            : status == 'pending'
                             ? Colors.orange
-                            : Colors.red,
+                            : status == 'absent'
+                            ? Colors.red
+                            : Colors.grey,
                       ),
                       title: Text(att['date']),
-                      subtitle: Text('Status: ${att['status']}'),
+                      subtitle: Text('Status: ${status.toUpperCase()}'),
                       trailing: att['accepted_date'] != null
                           ? Text(
                               'Accepted: ${att['accepted_date']}',
@@ -322,13 +359,19 @@ class _TrainerDashboardState extends State<TrainerDashboard> {
     final targetCalories = calcData['target_calories'];
     final goal = calcData['goal'];
     final allergies = calcData['food_allergies'];
+    final currentWeight = calcData['current_weight'];
 
     // Get diet templates
-    final templatesResponse = await http.get(
-      Uri.parse(
-        'http://127.0.0.1:8000/api/diet/templates/?goal=$goal&target_calories=$targetCalories',
-      ),
-    );
+    String templatesUrl = 'http://127.0.0.1:8000/api/diet/templates/?goal=$goal';
+    
+    // For 'others' goal, pass user weight instead of target calories
+    if (goal == 'others') {
+      templatesUrl += '&user_weight=$currentWeight';
+    } else {
+      templatesUrl += '&target_calories=$targetCalories';
+    }
+    
+    final templatesResponse = await http.get(Uri.parse(templatesUrl));
 
     if (templatesResponse.statusCode != 200) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -364,6 +407,141 @@ class _TrainerDashboardState extends State<TrainerDashboard> {
         goal: goal,
         allergies: allergies,
         templates: templates,
+      ),
+    );
+  }
+
+  void _viewDietPlan(Map<String, dynamic> user) async {
+    try {
+      final response = await http.get(
+        Uri.parse('http://127.0.0.1:8000/api/diet/plan/user/${user['id']}/'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] && data['diet_plan'] != null) {
+          final dietPlan = data['diet_plan'];
+          _showDietPlanDetails(user['name'], dietPlan);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No diet plan found'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error loading diet plan: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _showDietPlanDetails(String userName, Map<String, dynamic> dietPlan) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('$userName - Diet Plan'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 500,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Card(
+                  color: Colors.green.shade50,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          dietPlan['plan_name'] ?? 'Diet Plan',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text('Calories: ${dietPlan['target_calories'] ?? 'N/A'} cal/day'),
+                        Text('Created: ${dietPlan['created_at'] ?? 'N/A'}'),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  '7-Day Meal Plan:',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                ...['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) {
+                  final dayMeals = dietPlan['meals_data']?[day];
+                  if (dayMeals == null) return const SizedBox.shrink();
+                  
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ExpansionTile(
+                      title: Text(
+                        day.toUpperCase(),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildMealSection('Breakfast', dayMeals['breakfast']),
+                              _buildMealSection('Lunch', dayMeals['lunch']),
+                              _buildMealSection('Dinner', dayMeals['dinner']),
+                              _buildMealSection('Snacks', dayMeals['snacks']),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMealSection(String mealName, dynamic meals) {
+    if (meals == null) return const SizedBox.shrink();
+    
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$mealName:',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          ...List<Map<String, dynamic>>.from(meals).map((item) {
+            return Padding(
+              padding: const EdgeInsets.only(left: 16, bottom: 2),
+              child: Text('• ${item['food']} - ${item['quantity']}'),
+            );
+          }).toList(),
+        ],
       ),
     );
   }
@@ -472,6 +650,89 @@ class _TrainerDashboardState extends State<TrainerDashboard> {
                     ),
                     const SizedBox(height: 20),
                   ],
+
+                  // Video Management Section
+                  Card(
+                    elevation: 3,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFE91E63), Color(0xFFF06292)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.video_library, color: Colors.white, size: 28),
+                              const SizedBox(width: 10),
+                              const Text(
+                                'Workout Videos',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Upload workout videos for your users',
+                            style: TextStyle(color: Colors.white, fontSize: 14),
+                          ),
+                          const SizedBox(height: 15),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => VideoUploadScreen(
+                                    trainerId: widget.trainerId,
+                                    trainerName: widget.trainerName,
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.cloud_upload),
+                            label: const Text('Upload Video'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: const Color(0xFFE91E63),
+                              minimumSize: const Size(double.infinity, 45),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ManageVideosScreen(
+                                    trainerId: widget.trainerId,
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.video_library),
+                            label: const Text('Manage Videos'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              side: const BorderSide(color: Colors.white),
+                              minimumSize: const Size(double.infinity, 45),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
 
                   // Assigned Users
                   Text(
@@ -613,11 +874,19 @@ class _TrainerDashboardState extends State<TrainerDashboard> {
                                     ),
                                     const SizedBox(width: 8),
                                     ElevatedButton.icon(
-                                      onPressed: () => _createDietPlan(user),
-                                      icon: const Icon(Icons.restaurant_menu),
-                                      label: const Text('Diet Plan'),
+                                      onPressed: () => user['has_diet_plan'] == true 
+                                          ? _viewDietPlan(user)
+                                          : _createDietPlan(user),
+                                      icon: Icon(user['has_diet_plan'] == true 
+                                          ? Icons.visibility 
+                                          : Icons.restaurant_menu),
+                                      label: Text(user['has_diet_plan'] == true 
+                                          ? 'View Diet'
+                                          : 'Diet Plan'),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.green,
+                                        backgroundColor: user['has_diet_plan'] == true 
+                                            ? Colors.blue
+                                            : Colors.green,
                                         foregroundColor: Colors.white,
                                       ),
                                     ),

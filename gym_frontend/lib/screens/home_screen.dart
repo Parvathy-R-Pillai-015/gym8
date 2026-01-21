@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'workout_videos_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final int userId;
@@ -20,6 +21,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _attendanceHistory = [];
   int _totalAttendance = 0;
   int _pendingAttendance = 0;
+  int _totalAbsent = 0;
   bool _canRequestToday = true;
   Map<String, dynamic>? _dietPlan;
   bool _hasDietPlan = false;
@@ -82,6 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
             );
             _totalAttendance = data['total_accepted'];
             _pendingAttendance = data['total_pending'];
+            _totalAbsent = data['total_absent'] ?? 0;
 
             // Check if already requested today
             final today = DateTime.now().toIso8601String().split('T')[0];
@@ -192,6 +195,19 @@ class _HomeScreenState extends State<HomeScreen> {
                           const Text('Pending'),
                         ],
                       ),
+                      Column(
+                        children: [
+                          Text(
+                            '$_totalAbsent',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red,
+                            ),
+                          ),
+                          const Text('Absent'),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -204,21 +220,26 @@ class _HomeScreenState extends State<HomeScreen> {
                         itemCount: _attendanceHistory.length,
                         itemBuilder: (context, index) {
                           final att = _attendanceHistory[index];
+                          final status = att['status'];
                           return ListTile(
                             leading: Icon(
-                              att['status'] == 'accepted'
+                              status == 'accepted'
                                   ? Icons.check_circle
-                                  : att['status'] == 'pending'
+                                  : status == 'pending'
                                   ? Icons.pending
+                                  : status == 'absent'
+                                  ? Icons.event_busy
                                   : Icons.cancel,
-                              color: att['status'] == 'accepted'
+                              color: status == 'accepted'
                                   ? Colors.green
-                                  : att['status'] == 'pending'
+                                  : status == 'pending'
                                   ? Colors.orange
-                                  : Colors.red,
+                                  : status == 'absent'
+                                  ? Colors.red
+                                  : Colors.grey,
                             ),
                             title: Text(att['date']),
-                            subtitle: Text('Status: ${att['status']}'),
+                            subtitle: Text('Status: ${status.toUpperCase()}'),
                           );
                         },
                       ),
@@ -971,6 +992,65 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
+          const SizedBox(height: 20),
+          // Workout Videos Section
+          Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFE91E63), Color(0xFFF06292)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.play_circle_filled, color: Colors.white, size: 28),
+                      const SizedBox(width: 10),
+                      const Text(
+                        'Workout Videos',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Watch personalized workout videos tailored to your fitness goals',
+                    style: TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                  const SizedBox(height: 15),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => WorkoutVideosScreen(userId: widget.userId),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.video_library),
+                    label: const Text('Browse Videos'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFFE91E63),
+                      minimumSize: const Size(double.infinity, 45),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           const SizedBox(height: 20),
           // Review Section
           Card(

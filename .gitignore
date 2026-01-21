@@ -1,25 +1,9 @@
-# Django
-*.pyc
+# Django media files
+gym_backend/media/
+*.mp4
+*.mov
+
+# Python
 __pycache__/
+*.pyc
 *.sqlite3
-db.sqlite3
-*.log
-.env
-venv/
-env/
-
-# Flutter
-gym_frontend/build/
-gym_frontend/.dart_tool/
-gym_frontend/.packages
-gym_frontend/pubspec.lock
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db

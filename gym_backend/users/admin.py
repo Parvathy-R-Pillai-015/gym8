@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import UserLogin, Trainer
+from .models import UserLogin, Trainer, WorkoutVideo
 
 # Register your models here.
 
@@ -52,3 +52,34 @@ class TrainerAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+@admin.register(WorkoutVideo)
+class WorkoutVideoAdmin(admin.ModelAdmin):
+    list_display = ('day_number', 'title', 'goal_type', 'difficulty_level', 'uploaded_via', 'uploaded_by', 'is_active', 'created_at')
+    list_filter = ('uploaded_via', 'goal_type', 'difficulty_level', 'is_active', 'created_at')
+    search_fields = ('title', 'description')
+    readonly_fields = ('created_at', 'updated_at')
+    ordering = ('day_number', 'goal_type', 'difficulty_level')
+    
+    fieldsets = (
+        ('Video Information', {
+            'fields': ('title', 'description', 'video_file', 'thumbnail', 'duration')
+        }),
+        ('Classification', {
+            'fields': ('goal_type', 'difficulty_level', 'min_weight_difference', 'max_weight_difference')
+        }),
+        ('Upload Details', {
+            'fields': ('uploaded_by', 'uploaded_via', 'day_number')
+        }),
+        ('Status', {
+            'fields': ('is_active',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related('uploaded_by', 'uploaded_by__user')

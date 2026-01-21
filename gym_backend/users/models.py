@@ -155,6 +155,80 @@ class UserProfile(models.Model):
             remaining = (plan_end - timezone.now()).days
             return max(0, remaining)
         return self.target_months * 30
+    
+    def calculate_target_calories(self):
+        """
+        Calculate personalized daily calorie target based on:
+        - Current weight and target weight
+        - Target timeline (months)
+        - Safe weight change limits
+        
+        Returns: dict with target_calories and warnings
+        """
+        # Base Metabolic Rate (BMR) - calories needed at rest
+        bmr = self.current_weight * 24
+        
+        # Calculate weight change needed
+        weight_change = self.target_weight - self.current_weight
+        
+        # Calculate weeks available
+        weeks = self.target_months * 4
+        
+        # Calculate weekly weight change rate
+        weekly_change = weight_change / weeks if weeks > 0 else 0
+        
+        # Safety limits (medical recommendations)
+        # Weight loss: max 0.5-1kg per week
+        # Weight gain: max 0.5-1kg per week
+        # Muscle gain: max 0.5kg per week
+        max_safe_loss = -1.0  # kg per week
+        min_safe_loss = -0.5  # kg per week
+        max_safe_gain = 1.0   # kg per week
+        min_safe_gain = 0.5   # kg per week
+        
+        warnings = []
+        adjusted_weekly_change = weekly_change
+        
+        # Check if goals are realistic
+        if weight_change < 0:  # Weight loss
+            if weekly_change < max_safe_loss:
+                warnings.append(f"Goal too aggressive! Losing {abs(weekly_change):.2f}kg/week is unsafe. Adjusted to 1kg/week max.")
+                adjusted_weekly_change = max_safe_loss
+            elif weekly_change > min_safe_loss:
+                warnings.append(f"Very slow progress: {abs(weekly_change):.2f}kg/week. Consider shorter timeline.")
+        elif weight_change > 0:  # Weight gain
+            if weekly_change > max_safe_gain:
+                warnings.append(f"Goal too aggressive! Gaining {weekly_change:.2f}kg/week is unhealthy. Adjusted to 1kg/week max.")
+                adjusted_weekly_change = max_safe_gain
+            elif weekly_change < min_safe_gain and self.goal == 'muscle_gain':
+                warnings.append(f"Very slow progress for muscle gain: {weekly_change:.2f}kg/week.")
+        
+        # 1 kg of body weight = approximately 7700 calories
+        # Daily calorie adjustment = (weekly_change × 7700) / 7
+        daily_adjustment = (adjusted_weekly_change * 7700) / 7
+        
+        # Calculate target calories
+        target_calories = bmr + daily_adjustment
+        
+        # Absolute minimum safe calories (prevent starvation)
+        min_safe_calories = 1200 if self.gender == 'female' else 1500
+        max_safe_calories = 4000  # Upper limit for safety
+        
+        if target_calories < min_safe_calories:
+            warnings.append(f"Calculated {target_calories:.0f} cal/day is below safe minimum. Set to {min_safe_calories} cal/day.")
+            target_calories = min_safe_calories
+        elif target_calories > max_safe_calories:
+            warnings.append(f"Calculated {target_calories:.0f} cal/day exceeds safe maximum. Set to {max_safe_calories} cal/day.")
+            target_calories = max_safe_calories
+        
+        return {
+            'target_calories': round(target_calories),
+            'bmr': round(bmr),
+            'weekly_change': round(adjusted_weekly_change, 2),
+            'daily_adjustment': round(daily_adjustment),
+            'warnings': warnings,
+            'is_safe': len(warnings) == 0
+        }
 
 
 class Attendance(models.Model):
@@ -303,3 +377,72 @@ class UserDietPlan(models.Model):
     
     def __str__(self):
         return f"{self.user.name} - {self.plan_name}"
+
+
+class WorkoutVideo(models.Model):
+    """
+    WorkoutVideo model to store workout videos uploaded by trainers
+    """
+    GOAL_TYPE_CHOICES = [
+        ('weight_gain', 'Weight Gain'),
+        ('weight_loss', 'Weight Loss'),
+        ('muscle_gain', 'Muscle Gain'),
+        ('muscle_building', 'Muscle Building'),
+        ('others', 'General Fitness'),
+    ]
+    
+    DIFFICULTY_LEVEL_CHOICES = [
+        ('beginner', 'Beginner (0-10kg difference)'),
+        ('advanced', 'Advanced (11-30kg difference)'),
+    ]
+    
+    UPLOAD_TYPE_CHOICES = [
+        ('web', 'Web Upload'),
+        ('bulk', 'Bulk/Admin Upload'),
+    ]
+    
+    title = models.CharField(max_length=255, verbose_name="Video Title")
+    description = models.TextField(verbose_name="Description")
+    video_file = models.FileField(upload_to='workout_videos/', verbose_name="Video File")
+    thumbnail = models.ImageField(upload_to='video_thumbnails/', null=True, blank=True, verbose_name="Thumbnail")
+    goal_type = models.CharField(max_length=50, choices=GOAL_TYPE_CHOICES, verbose_name="Goal Type")
+    difficulty_level = models.CharField(max_length=20, choices=DIFFICULTY_LEVEL_CHOICES, verbose_name="Difficulty Level")
+    min_weight_difference = models.IntegerField(default=0, verbose_name="Min Weight Difference (kg)")
+    max_weight_difference = models.IntegerField(default=10, verbose_name="Max Weight Difference (kg)")
+    duration = models.IntegerField(null=True, blank=True, verbose_name="Duration (seconds)")
+    uploaded_by = models.ForeignKey(Trainer, on_delete=models.CASCADE, related_name='uploaded_videos')
+    uploaded_via = models.CharField(max_length=10, choices=UPLOAD_TYPE_CHOICES, default='web', verbose_name="Upload Type")
+    day_number = models.IntegerField(null=True, blank=True, verbose_name="Day Number (for daily progression)")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Created At")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated At")
+    is_active = models.BooleanField(default=True, verbose_name="Is Active")
+    
+    class Meta:
+        db_table = 'workout_video'
+        verbose_name = 'Workout Video'
+        verbose_name_plural = 'Workout Videos'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.title} - {self.goal_type} ({self.difficulty_level})"
+
+
+class VideoRecommendation(models.Model):
+    """
+    VideoRecommendation model to track trainer-recommended videos for specific users
+    """
+    video = models.ForeignKey(WorkoutVideo, on_delete=models.CASCADE, related_name='recommendations')
+    user = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name='recommended_videos')
+    recommended_by = models.ForeignKey(Trainer, on_delete=models.CASCADE, related_name='video_recommendations')
+    note = models.TextField(null=True, blank=True, verbose_name="Trainer's Note")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Recommended At")
+    
+    class Meta:
+        db_table = 'video_recommendation'
+        verbose_name = 'Video Recommendation'
+        verbose_name_plural = 'Video Recommendations'
+        ordering = ['-created_at']
+        unique_together = ['video', 'user']
+    
+    def __str__(self):
+        return f"{self.video.title} → {self.user.user.name}"
